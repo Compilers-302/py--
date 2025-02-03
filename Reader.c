@@ -151,74 +151,57 @@ BufferPointer readerCreate(pym_int size, pym_int increment, pym_char mode) {
 BufferPointer readerAddChar(BufferPointer readerPointer, pym_char ch) {
 	pym_str tempReader = PYM_INVALID;
 	pym_int newSize = 0;
-	pym_char tempChar = ' ';
-	/* TO_DO: Defensive programming */
-	if (!readerPointer)
+
+	/* Defensive Programming: Validate buffer pointer */
+	if (!readerPointer || !readerPointer->content)
 		return PYM_INVALID;
-
-	if (!ch)
-		return PYM_ERROR;
-
-	/* TO_DO: Reset Realocation */
-	readerPointer->flags.isMoved = PYM_FALSE;
-	//realloc(readerPointer->size, newSize);
-	/* TO_DO: Test the inclusion of chars */
-	if (readerPointer->positions.wrte * (pym_int)sizeof(pym_char) < readerPointer->size) {
-		/* TO_DO: This buffer is NOT full */
-		readerPointer->flags.isFull = PYM_ERROR;
-	}
-	else {
-		/* TO_DO: Reset Full flag */
-		readerPointer->flags.isEmpty = PYM_FALSE;
-		readerPointer->flags.isFull = PYM_FALSE;
-		readerPointer->flags.isMoved = PYM_FALSE;
-		readerPointer->flags.isRead = PYM_FALSE;
+	/* Check if buffer is full */
+	if (readerPointer->positions.wrte >= readerPointer->size) {
+		readerPointer->flags.isFull = PYM_TRUE;   /* Mark buffer as full */
 
 		switch (readerPointer->mode) {
 		case MODE_FIXED:
-			/* TO_DO: Update the last position with Terminator */
-			readerPointer->positions.wrte = PYM_ERROR;
-			readerPointer->positions.read = PYM_ERROR;
-			readerPointer->positions.mark = PYM_ERROR;
-			break;
+			/* Fixed mode: Cannot expand, return INVALID */
+			return PYM_INVALID;
+
 		case MODE_ADDIT:
-			/* TO_DO: Update size for Additive mode */
+			/* Additive mode: Increase size by 'increment' */
 			newSize = readerPointer->size + readerPointer->increment;
-			/* TO_DO: Defensive programming */
-			if (newSize >= 0 && newSize < READER_MAX_SIZE)
-				return readerPointer->size = newSize;
+			if (newSize < 0 || newSize > READER_MAX_SIZE) /* Prevent overflow */
+				return PYM_INVALID;
 			break;
+
 		case MODE_MULTI:
-			/* TO_DO: Update size for Additive mode */
+			/* Multiplicative mode: Increase size by multiplying increment */
 			newSize = readerPointer->size * readerPointer->increment;
-			/* TO_DO: Defensive programming */
-			if (newSize >= 0 && newSize < READER_MAX_SIZE)
-				return readerPointer->size = newSize;
+			if (newSize < 0 || newSize > READER_MAX_SIZE) /* Prevent overflow */
+				return PYM_INVALID;
 			break;
+
 		default:
 			return PYM_INVALID;
 		}
-		/* TO_DO: Reallocate */
+
+		/* Reallocate memory */
 		tempReader = (pym_str)realloc(readerPointer->content, newSize);
-		//readerPointer->content = realloc(readerPointer->content, newSize);
-		/* TO_DO: Defensive programming */
-		if (readerPointer->content == PYM_INVALID)
+		if (tempReader == PYM_INVALID)
 			return PYM_INVALID;
-		return readerPointer;
-	}
-	/* TO_DO: Update the flags */
-	if (readerPointer->positions.wrte == readerPointer->size) {
-		readerPointer->flags.isFull = 1;
+
+		readerPointer->content = tempReader;
+		readerPointer->size = newSize;
 	}
 
-	if (readerPointer->positions.wrte == 0) {
-		readerPointer->flags.isEmpty = 1;
-	}
-
-	readerPointer->flags.isMoved = 1;
+	/* Add character to buffer */
 	readerPointer->content[readerPointer->positions.wrte++] = ch;
-	/* TO_DO: Updates histogram */
+	readerPointer->flags.isEmpty = PYM_FALSE;
+
+	/* Update flags */
+	if (readerPointer->positions.wrte == readerPointer->size)
+		readerPointer->flags.isFull = PYM_TRUE;
+
+	/* Update histogram */
 	readerPointer->histogram[ch]++;
+
 	return readerPointer;
 }
 
